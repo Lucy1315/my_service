@@ -91,8 +91,20 @@ def create_record(body: RecordIn):
 
 
 @app.get("/records")
-def list_records():
+def list_records(
+    region: str | None = None,
+    min_score: int | None = None,
+    keyword: str | None = None,
+):
     records = _load_records()
+    # 선택적 필터 (AND 조건). 모두 None이면 전체 반환
+    if region is not None:
+        records = [r for r in records if r["region"] == region]
+    if min_score is not None:
+        records = [r for r in records if r["score"] >= min_score]
+    if keyword:
+        kw = keyword.lower()
+        records = [r for r in records if kw in r.get("memo", "").lower()]
     records.reverse()  # 파일은 시간순 append → 뒤집으면 최신이 앞
     return {"count": len(records), "records": records}
 

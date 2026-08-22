@@ -109,16 +109,34 @@ if lookup_name:
                     else:
                         st.error(f"삭제 실패({res.status_code}): {res.text}")
 
-# ── 전체 기록 ─────────────────────────────────────────────────
+# ── 검색 조건 (사이드바) ───────────────────────────────────────
+st.sidebar.header("검색 조건")
+filter_region = st.sidebar.selectbox("지역", ["전체"] + list(locations.keys()))
+filter_min_score = st.sidebar.slider("최소 만족도", 1, 5, 1)
+filter_keyword = st.sidebar.text_input("메모 검색")
+
+# 기본값이면 파라미터를 보내지 않는다 → 백엔드가 전체 반환
+filter_params = {}
+if filter_region != "전체":
+    filter_params["region"] = filter_region
+if filter_min_score > 1:
+    filter_params["min_score"] = filter_min_score
+if filter_keyword.strip():
+    filter_params["keyword"] = filter_keyword.strip()
+
+# ── 전체 기록 (필터 적용) ──────────────────────────────────────
 st.subheader("전체 기록")
 try:
-    all_records = requests.get(f"{BACKEND_URL}/records", timeout=5).json()
+    all_records = requests.get(f"{BACKEND_URL}/records", params=filter_params, timeout=5).json()
 except requests.exceptions.RequestException as e:
     st.error(f"기록 조회 실패: {e}")
 else:
+    st.sidebar.markdown(f"**조건에 맞는 기록: {all_records['count']}건**")
     st.caption(f"총 {all_records['count']}건 (최신순)")
     if all_records["count"]:
         st.dataframe(pd.DataFrame(all_records["records"]))
+    elif filter_params:
+        st.warning("조건에 맞는 기록이 없습니다")
     else:
         st.info("아직 저장된 기록이 없습니다.")
 
