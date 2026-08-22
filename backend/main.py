@@ -110,6 +110,22 @@ def list_user_records(user_name: str):
     }
 
 
+@app.delete("/records/{record_id}")
+def delete_record(record_id: str):
+    records = _load_records()
+    remaining = [r for r in records if r.get("id") != record_id]
+    if len(remaining) == len(records):
+        raise HTTPException(status_code=404, detail=f"record '{record_id}' not found")
+
+    # 임시 파일에 먼저 쓰고 원본과 원자적으로 교체 → 중간 실패 시 원본 보존
+    tmp_file = RECORDS_FILE.with_suffix(".jsonl.tmp")
+    with tmp_file.open("w", encoding="utf-8") as f:
+        for r in remaining:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    tmp_file.replace(RECORDS_FILE)
+    return {"deleted": record_id}
+
+
 @app.get("/stats")
 def get_stats():
     records = _load_records()

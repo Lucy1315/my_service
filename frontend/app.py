@@ -64,25 +64,50 @@ else:
 
 # ── 내 기록 조회 ──────────────────────────────────────────────
 st.subheader("내 기록 조회")
+if "delete_msg" in st.session_state:
+    st.success(st.session_state.pop("delete_msg"))
 query_name = st.text_input("조회할 이름")
 if st.button("내 기록 보기"):
     if not query_name.strip():
         st.warning("조회할 이름을 입력해주세요")
+        st.session_state.pop("lookup_name", None)
     else:
-        try:
-            result = requests.get(
-                f"{BACKEND_URL}/records/user/{query_name.strip()}", timeout=5
-            ).json()
-        except requests.exceptions.RequestException as e:
-            st.error(f"조회 실패(백엔드 연결): {e}")
+        # 삭제 버튼 클릭으로 rerun 되어도 조회 결과가 유지되도록 이름을 보관
+        st.session_state["lookup_name"] = query_name.strip()
+
+lookup_name = st.session_state.get("lookup_name")
+if lookup_name:
+    try:
+        result = requests.get(f"{BACKEND_URL}/records/user/{lookup_name}", timeout=5).json()
+    except requests.exceptions.RequestException as e:
+        st.error(f"조회 실패(백엔드 연결): {e}")
+    else:
+        if result["count"] == 0:
+            st.info(f"'{lookup_name}' 이름으로 남긴 기록이 없습니다.")
         else:
-            if result["count"] == 0:
-                st.info(f"'{query_name.strip()}' 이름으로 남긴 기록이 없습니다.")
-            else:
-                m1, m2 = st.columns(2)
-                m1.metric("내 기록 수", result["count"])
-                m2.metric("평균 만족도", result["avg_score"])
-                st.dataframe(pd.DataFrame(result["records"]))
+            m1, m2 = st.columns(2)
+            m1.metric("내 기록 수", result["count"])
+            m2.metric("평균 만족도", result["avg_score"])
+            st.dataframe(pd.DataFrame(result["records"]))
+
+            # ── 기록 삭제 (조회 결과가 1건 이상일 때만) ──
+            options = {
+                f"{r['id']} · {r['region']} · {r['score']} · {r['memo']}": r["id"]
+                for r in result["records"]
+            }
+            chosen = st.selectbox("삭제할 기록 선택", list(options.keys()))
+            if st.button("선택한 기록 삭제"):
+                try:
+                    res = requests.delete(f"{BACKEND_URL}/records/{options[chosen]}", timeout=5)
+                except requests.exceptions.RequestException as e:
+                    st.error(f"삭제 실패(백엔드 연결): {e}")
+                else:
+                    if res.status_code == 200:
+                        # rerun 뒤에도 메시지가 보이도록 보관 후 새로 그림
+                        st.session_state["delete_msg"] = "삭제했습니다"
+                        st.rerun()
+                    else:
+                        st.error(f"삭제 실패({res.status_code}): {res.text}")
 
 # ── 전체 기록 ─────────────────────────────────────────────────
 st.subheader("전체 기록")
