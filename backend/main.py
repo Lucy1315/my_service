@@ -108,3 +108,27 @@ def list_user_records(user_name: str):
         "avg_score": avg_score,
         "records": records,
     }
+
+
+@app.get("/stats")
+def get_stats():
+    records = _load_records()
+    if not records:
+        return {"total": 0, "user_count": 0, "overall_avg": 0, "by_region": []}
+
+    by_region: dict[str, list[int]] = {}
+    for r in records:
+        by_region.setdefault(r["region"], []).append(r["score"])
+
+    region_stats = [
+        {"region": region, "count": len(scores), "avg_score": round(sum(scores) / len(scores), 1)}
+        for region, scores in by_region.items()
+    ]
+    region_stats.sort(key=lambda x: x["count"], reverse=True)
+
+    return {
+        "total": len(records),
+        "user_count": len({r["user_name"] for r in records}),
+        "overall_avg": round(sum(r["score"] for r in records) / len(records), 1),
+        "by_region": region_stats,
+    }

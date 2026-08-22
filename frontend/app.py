@@ -47,6 +47,21 @@ if submitted:
             else:
                 st.error(f"저장 실패({res.status_code}): {res.text}")
 
+# ── 전체 현황 ─────────────────────────────────────────────────
+st.subheader("전체 현황")
+try:
+    stats = requests.get(f"{BACKEND_URL}/stats", timeout=5).json()
+except requests.exceptions.RequestException as e:
+    st.error(f"통계 조회 실패: {e}")
+else:
+    s1, s2, s3 = st.columns(3)
+    s1.metric("총 기록 수", stats["total"])
+    s2.metric("참여자 수", stats["user_count"])
+    s3.metric("전체 평균 만족도", stats["overall_avg"])
+    if stats["by_region"]:
+        region_df = pd.DataFrame(stats["by_region"])
+        st.bar_chart(region_df, x="region", y="avg_score")
+
 # ── 내 기록 조회 ──────────────────────────────────────────────
 st.subheader("내 기록 조회")
 query_name = st.text_input("조회할 이름")
