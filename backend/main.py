@@ -95,3 +95,16 @@ def list_records():
     records = _load_records()
     records.reverse()  # 파일은 시간순 append → 뒤집으면 최신이 앞
     return {"count": len(records), "records": records}
+
+
+@app.get("/records/user/{user_name}")
+def list_user_records(user_name: str):
+    records = [r for r in _load_records() if r.get("user_name") == user_name]
+    records.reverse()  # 최신순
+    avg_score = round(sum(r["score"] for r in records) / len(records), 1) if records else 0
+    return {
+        "user_name": user_name,
+        "count": len(records),
+        "avg_score": avg_score,
+        "records": records,
+    }

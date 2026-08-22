@@ -29,7 +29,58 @@ if submitted:
     if not name.strip():
         st.warning("이름을 입력해주세요")
     else:
-        st.success(f"이름: {name} · 지역: {region} · 만족도: {rating} · 메모: {memo}")
+        try:
+            res = requests.post(
+                f"{BACKEND_URL}/records",
+                json={"user_name": name.strip(), "region": region, "score": rating, "memo": memo},
+                timeout=5,
+            )
+        except requests.exceptions.RequestException as e:
+            st.error(f"저장 실패(백엔드 연결): {e}")
+        else:
+            if res.status_code == 201:
+                saved = res.json()
+                st.success(
+                    f"저장 완료 · 이름: {saved['user_name']} · 지역: {saved['region']} "
+                    f"· 만족도: {saved['score']} · 메모: {saved['memo']}"
+                )
+            else:
+                st.error(f"저장 실패({res.status_code}): {res.text}")
+
+# ── 내 기록 조회 ──────────────────────────────────────────────
+st.subheader("내 기록 조회")
+query_name = st.text_input("조회할 이름")
+if st.button("내 기록 보기"):
+    if not query_name.strip():
+        st.warning("조회할 이름을 입력해주세요")
+    else:
+        try:
+            result = requests.get(
+                f"{BACKEND_URL}/records/user/{query_name.strip()}", timeout=5
+            ).json()
+        except requests.exceptions.RequestException as e:
+            st.error(f"조회 실패(백엔드 연결): {e}")
+        else:
+            if result["count"] == 0:
+                st.info(f"'{query_name.strip()}' 이름으로 남긴 기록이 없습니다.")
+            else:
+                m1, m2 = st.columns(2)
+                m1.metric("내 기록 수", result["count"])
+                m2.metric("평균 만족도", result["avg_score"])
+                st.dataframe(pd.DataFrame(result["records"]))
+
+# ── 전체 기록 ─────────────────────────────────────────────────
+st.subheader("전체 기록")
+try:
+    all_records = requests.get(f"{BACKEND_URL}/records", timeout=5).json()
+except requests.exceptions.RequestException as e:
+    st.error(f"기록 조회 실패: {e}")
+else:
+    st.caption(f"총 {all_records['count']}건 (최신순)")
+    if all_records["count"]:
+        st.dataframe(pd.DataFrame(all_records["records"]))
+    else:
+        st.info("아직 저장된 기록이 없습니다.")
 
 city = st.selectbox("지역 선택", list(locations.keys()))
 n_points = st.slider("랜덤 포인트 개수", 10, 200, 50)
