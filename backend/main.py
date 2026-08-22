@@ -1,10 +1,12 @@
+import csv
+import io
 import json
 import random
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="Location API")
@@ -90,14 +92,11 @@ def create_record(body: RecordIn):
     return record
 
 
-@app.get("/records")
-def list_records(
-    region: str | None = None,
-    min_score: int | None = None,
-    keyword: str | None = None,
-):
+def _filter_records(
+    region: str | None, min_score: int | None, keyword: str | None
+) -> list[dict]:
+    """선택적 필터(AND 조건)를 적용해 최신순으로 반환. 모두 None이면 전체."""
     records = _load_records()
-    # 선택적 필터 (AND 조건). 모두 None이면 전체 반환
     if region is not None:
         records = [r for r in records if r["region"] == region]
     if min_score is not None:
@@ -106,7 +105,40 @@ def list_records(
         kw = keyword.lower()
         records = [r for r in records if kw in r.get("memo", "").lower()]
     records.reverse()  # 파일은 시간순 append → 뒤집으면 최신이 앞
+    return records
+
+
+@app.get("/records")
+def list_records(
+    region: str | None = None,
+    min_score: int | None = None,
+    keyword: str | None = None,
+):
+    records = _filter_records(region, min_score, keyword)
     return {"count": len(records), "records": records}
+
+
+CSV_COLUMNS = ["id", "user_name", "region", "score", "memo", "lat", "lon", "created_at"]
+
+
+@app.get("/records/export.csv")
+def export_records_csv(
+    region: str | None = None,
+    min_score: int | None = None,
+    keyword: str | None = None,
+):
+    records = _filter_records(region, min_score, keyword)
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=CSV_COLUMNS, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(records)
+    # utf-8-sig(BOM) 로 인코딩해야 엑셀에서 한글이 깨지지 않는다
+    content = buf.getvalue().encode("utf-8-sig")
+    return Response(
+        content=content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=records.csv"},
+    )
 
 
 @app.get("/records/user/{user_name}")

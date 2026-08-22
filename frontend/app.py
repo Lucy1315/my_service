@@ -135,6 +135,21 @@ else:
     st.caption(f"총 {all_records['count']}건 (최신순)")
     if all_records["count"]:
         st.dataframe(pd.DataFrame(all_records["records"]))
+        # 같은 필터가 적용된 CSV 를 받아 다운로드 버튼으로 제공 (0건이면 표시 안 함)
+        try:
+            csv_res = requests.get(
+                f"{BACKEND_URL}/records/export.csv", params=filter_params, timeout=5
+            )
+            csv_res.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            st.error(f"CSV 준비 실패: {e}")
+        else:
+            st.download_button(
+                "CSV로 내려받기",
+                data=csv_res.content,
+                file_name="records.csv",
+                mime="text/csv",
+            )
     elif filter_params:
         st.warning("조건에 맞는 기록이 없습니다")
     else:
